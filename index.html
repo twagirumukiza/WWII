@@ -54,6 +54,28 @@
     }
     .country:hover { stroke: #fff; stroke-width: 1.3; cursor: pointer; }
     .country.dimmed { opacity: 0.18; }
+    .battle-marker {
+      fill: #f1c40f;
+      stroke: #fff;
+      stroke-width: 1.5;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .battle-marker.visible { opacity: 1; }
+    .battle-marker:hover { fill: #f39c12; stroke-width: 2.5; }
+    .battle-label {
+      font-size: 9px;
+      font-weight: 600;
+      fill: #f1c40f;
+      stroke: #0a0e14;
+      stroke-width: 2.5px;
+      paint-order: stroke;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .battle-label.visible { opacity: 1; }
     #controls {
       background: var(--panel);
       border-top: 1px solid #2a3548;
@@ -157,6 +179,45 @@
       z-index: 10;
       max-width: 220px;
     }
+    /* Drapeaux / marqueurs sur la timeline */
+    #flags-track {
+      position: relative;
+      height: 26px;
+      margin: 4px 60px 2px 60px;
+    }
+    .tl-flag {
+      position: absolute;
+      top: 4px;
+      transform: translateX(-50%);
+      width: 16px;
+      height: 12px;
+      border-radius: 2px;
+      border: 1px solid rgba(255,255,255,0.4);
+      cursor: pointer;
+      opacity: 0.4;
+      transition: opacity 0.25s, transform 0.15s, box-shadow 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 0 2px #000;
+      z-index: 2;
+    }
+    .tl-flag:hover {
+      transform: translateX(-50%) scale(1.4);
+      opacity: 1 !important;
+      z-index: 6;
+    }
+    .tl-flag.lit {
+      opacity: 1;
+      box-shadow: 0 0 10px 2px currentColor;
+      border-color: #fff;
+    }
+    .tl-flag.dim {
+      opacity: 0.12;
+    }
   </style>
 </head>
 <body>
@@ -181,19 +242,55 @@
 
   <div id="controls">
     <div id="eventLabel">1<sup>er</sup> septembre 1939 – Invasion de la Pologne</div>
+    <div id="flags-track"></div>
     <div class="timeline-row">
       <button id="playBtn" title="Lancer / Pause l'animation">▶</button>
       <input type="range" id="slider" min="0" max="72" value="0" step="1">
       <div id="dateLabel">sep. 1939</div>
     </div>
     <p class="note">
-      Cliquez sur une couleur de la légende pour filtrer / mettre en évidence ce camp (recliquez pour tout réafficher).
-      Prototype pédagogique : contrôle approximatif par pays (pas les lignes de front exactes). Projection Equal Earth.
-      Capitulation du Japon : 2 septembre 1945.
+      Petits drapeaux sur la timeline = grandes batailles (cliquez pour y aller). Points jaunes sur la carte = même chose.
+      Cliquez sur une légende → seuls les drapeaux de ce camp s’illuminent + timeline adaptée.
+      Prototype pédagogique · Projection Equal Earth · Capitulation du Japon : 2 septembre 1945.
     </p>
   </div>
 
   <script>
+    // ========== GRANDES BATAILLES (marqueurs sur la carte) ==========
+    // lon, lat, mois d'apparition, nom, description courte
+    const battles = [
+      { lon: 20.0,   lat: 52.2,  m: 0,  name: "Pologne",          desc: "Invasion de la Pologne (1er sep. 1939)", side: "axis", short: "PL" },
+      { lon: 24.9,   lat: 60.2,  m: 3,  name: "Guerre d'Hiver",   desc: "URSS vs Finlande (nov. 1939 – mar. 1940)", side: "soviet", short: "FIN" },
+      { lon: 4.5,    lat: 50.8,  m: 8,  name: "Blitzkrieg Ouest", desc: "Pays-Bas, Belgique, France (mai-juin 1940)", side: "axis", short: "FR" },
+      { lon: 0.0,    lat: 51.5,  m: 10, name: "Bataille d'Angleterre", desc: "Luftwaffe vs RAF (juil.-oct. 1940)", side: "allies", short: "UK" },
+      { lon: 23.7,   lat: 37.9,  m: 15, name: "Grèce",            desc: "Guerre gréco-italienne puis invasion allemande", side: "axis", short: "GR" },
+      { lon: 23.9,   lat: 32.1,  m: 15, name: "Compass",          desc: "Offensive britannique en Libye (déc. 1940)", side: "allies", short: "LY" },
+      { lon: 24.0,   lat: 32.1,  m: 19, name: "Tobruk",           desc: "Siège de Tobrouk (avr. 1941)", side: "axis", short: "TO" },
+      { lon: 30.5,   lat: 50.4,  m: 21, name: "Barbarossa",       desc: "Invasion de l'URSS (22 juin 1941)", side: "axis", short: "BAR" },
+      { lon: 30.3,   lat: 59.9,  m: 24, name: "Léningrad",        desc: "Début du siège de Léningrad (sep. 1941)", side: "soviet", short: "LEN" },
+      { lon: -157.95,lat: 21.36, m: 27, name: "Pearl Harbor",     desc: "Attaque japonaise (7 déc. 1941) – USA en guerre", side: "japan", short: "PH" },
+      { lon: 103.85, lat: 1.29,  m: 29, name: "Singapour",        desc: "Chute de Singapour (15 fév. 1942)", side: "japan", short: "SG" },
+      { lon: 106.8,  lat: -6.2,  m: 30, name: "Java",             desc: "Bataille de la mer de Java / chute des DEI", side: "japan", short: "JV" },
+      { lon: -177.4, lat: 28.2,  m: 33, name: "Midway",           desc: "Bataille de Midway (4-7 juin 1942) – tournant Pacifique", side: "allies", short: "MID" },
+      { lon: 28.95,  lat: 30.84, m: 33, name: "El Alamein",       desc: "1re bataille d'El Alamein (juil. 1942)", side: "allies", short: "EA1" },
+      { lon: 160.2,  lat: -9.4,  m: 35, name: "Guadalcanal",      desc: "Campagne de Guadalcanal (août 1942 – fév. 1943)", side: "allies", short: "GUA" },
+      { lon: 44.5,   lat: 48.7,  m: 35, name: "Stalingrad",       desc: "Bataille de Stalingrad (août 1942 – fév. 1943)", side: "soviet", short: "STA" },
+      { lon: 28.95,  lat: 30.84, m: 38, name: "El Alamein 2",     desc: "2e bataille d'El Alamein (oct.-nov. 1942)", side: "allies", short: "EA2" },
+      { lon: -0.5,   lat: 35.7,  m: 38, name: "Torch",            desc: "Opération Torch – débarquement Afrique du Nord", side: "allies", short: "TOR" },
+      { lon: 36.0,   lat: 51.7,  m: 45, name: "Koursk",           desc: "Bataille de Koursk (juil. 1943) – plus grande bataille de chars", side: "soviet", short: "KOU" },
+      { lon: 15.0,   lat: 37.5,  m: 45, name: "Sicile",           desc: "Opération Husky – débarquement en Sicile", side: "allies", short: "SIC" },
+      { lon: 14.8,   lat: 40.7,  m: 47, name: "Salerne",          desc: "Débarquement à Salerne (sep. 1943)", side: "allies", short: "SAL" },
+      { lon: -0.9,   lat: 49.4,  m: 57, name: "Normandie",        desc: "Jour J – Overlord (6 juin 1944)", side: "allies", short: "D-DAY" },
+      { lon: 27.5,   lat: 53.9,  m: 57, name: "Bagration",        desc: "Opération Bagration – destruction du groupe d'armées Centre", side: "soviet", short: "BAG" },
+      { lon: 125.0,  lat: 11.0,  m: 61, name: "Leyte",            desc: "Débarquement aux Philippines / golfe de Leyte (oct. 1944)", side: "allies", short: "LEY" },
+      { lon: 5.5,    lat: 50.0,  m: 63, name: "Ardennes",         desc: "Bataille des Ardennes (déc. 1944)", side: "axis", short: "ARD" },
+      { lon: 141.3,  lat: 24.8,  m: 66, name: "Iwo Jima",         desc: "Bataille d'Iwo Jima (fév.-mar. 1945)", side: "allies", short: "IWO" },
+      { lon: 127.7,  lat: 26.3,  m: 68, name: "Okinawa",          desc: "Bataille d'Okinawa (avr.-juin 1945)", side: "allies", short: "OKI" },
+      { lon: 132.45, lat: 34.4,  m: 71, name: "Hiroshima",        desc: "Bombe atomique (6 août 1945)", side: "allies", short: "H" },
+      { lon: 129.87, lat: 32.75, m: 71, name: "Nagasaki",         desc: "Bombe atomique (9 août 1945)", side: "allies", short: "N" },
+      { lon: 139.8,  lat: 35.5,  m: 72, name: "Capitulation",     desc: "Capitulation du Japon (2 sep. 1945) – USS Missouri", side: "allies", short: "JP" }
+    ];
+
     // ========== PHASES (plus granulaires) ==========
     // m = mois depuis sep 1939 (0) jusqu'à sep 1945 (72)
     const phases = [
@@ -457,6 +554,7 @@
       .attr("d", path);
 
     const g = svg.append("g");
+    const battlesG = svg.append("g").attr("class", "battles-layer");
     const tooltip = d3.select("#tooltip");
 
     let countries = [];
@@ -504,6 +602,31 @@
         })
         .on("mouseleave", () => tooltip.style("display", "none"));
 
+      // Marqueurs des batailles
+      battlesG.selectAll("circle.battle-marker")
+        .data(battles)
+        .join("circle")
+        .attr("class", "battle-marker")
+        .attr("cx", d => projection([d.lon, d.lat])[0])
+        .attr("cy", d => projection([d.lon, d.lat])[1])
+        .attr("r", 5)
+        .on("mousemove", (event, d) => {
+          tooltip
+            .style("display", "block")
+            .style("left", (event.offsetX + 14) + "px")
+            .style("top", (event.offsetY + 14) + "px")
+            .html(`<strong>${d.name}</strong><br>${d.desc}`);
+        })
+        .on("mouseleave", () => tooltip.style("display", "none"));
+
+      battlesG.selectAll("text.battle-label")
+        .data(battles)
+        .join("text")
+        .attr("class", "battle-label")
+        .attr("x", d => projection([d.lon, d.lat])[0] + 8)
+        .attr("y", d => projection([d.lon, d.lat])[1] + 3)
+        .text(d => d.name);
+
       updateMap(0);
     }).catch(err => {
       container.append("div")
@@ -526,6 +649,19 @@
       return Array.from(set).sort((a, b) => a - b);
     }
 
+    function updateFlagsLighting() {
+      d3.selectAll(".tl-flag").each(function(d) {
+        const el = d3.select(this);
+        if (activeFilters.size === 6) {
+          el.classed("lit", false).classed("dim", false);
+        } else if (activeFilters.has(d.side)) {
+          el.classed("lit", true).classed("dim", false);
+        } else {
+          el.classed("lit", false).classed("dim", true);
+        }
+      });
+    }
+
     function updateMap(month) {
       currentMonth = month;
       g.selectAll("path.country")
@@ -537,6 +673,12 @@
         .duration(260)
         .attr("fill", d => colorMap[getStatus(d.properties.name, month)] || colorMap.neutral);
 
+      // Afficher les batailles dont le mois est atteint (et rester visibles un moment)
+      battlesG.selectAll("circle.battle-marker")
+        .classed("visible", d => month >= d.m && month <= d.m + 8);
+      battlesG.selectAll("text.battle-label")
+        .classed("visible", d => month >= d.m && month <= d.m + 8);
+
       let phase = phases[0];
       for (const p of phases) {
         if (p.m <= month) phase = p;
@@ -544,7 +686,41 @@
       d3.select("#dateLabel").text(phase.label);
       d3.select("#eventLabel").html(phase.event);
       d3.select("#slider").property("value", month);
+
+      updateFlagsLighting();
     }
+
+    // Créer les drapeaux sur la timeline
+    function buildTimelineFlags() {
+      const track = d3.select("#flags-track");
+      track.selectAll("*").remove();
+      battles.forEach(b => {
+        const pct = (b.m / 72) * 100;
+        track.append("div")
+          .datum(b)
+          .attr("class", "tl-flag")
+          .style("left", pct + "%")
+          .style("background", colorMap[b.side] || "#888")
+          .style("color", "#fff")
+          .text(b.short)
+          .attr("title", b.name + " – " + b.desc)
+          .on("click", () => {
+            if (playing) stopPlay();
+            updateMap(b.m);
+          })
+          .on("mouseenter", function() {
+            tooltip
+              .style("display", "block")
+              .style("left", "50%")
+              .style("top", "10px")
+              .html(`<strong>${b.name}</strong><br>${b.desc}`);
+          })
+          .on("mouseleave", () => tooltip.style("display", "none"));
+      });
+      updateFlagsLighting();
+    }
+    // Appel après chargement
+    setTimeout(buildTimelineFlags, 100);
 
     // Slider (reste sur toute la plage, mais on peut forcer un saut)
     d3.select("#slider").on("input", function () {
@@ -607,6 +783,7 @@
         item.classed("active", true).classed("inactive", false);
       }
       updateMap(currentMonth);
+      updateFlagsLighting();
     });
   </script>
 </body>
