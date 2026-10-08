@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Carte animée de la Seconde Guerre mondiale 1939-1945 (projection Equal Earth)</title>
+  <title>Carte animée de la Seconde Guerre mondiale 1939-1945 (Equal Earth)</title>
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
   <style>
@@ -38,46 +38,40 @@
       gap: 12px;
       justify-content: space-between;
     }
-    header h1 {
-      font-size: 1.15rem;
-      font-weight: 600;
-    }
-    header p {
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
+    header h1 { font-size: 1.15rem; font-weight: 600; }
+    header p { font-size: 0.85rem; color: var(--muted); }
     #map-container {
       flex: 1;
       position: relative;
-      min-height: 420px;
+      min-height: 440px;
       background: #0a0e14;
     }
     svg { width: 100%; height: 100%; display: block; }
     .country {
       stroke: #1a2332;
       stroke-width: 0.4;
-      transition: fill 0.35s ease;
+      transition: fill 0.3s ease, opacity 0.3s ease;
     }
-    .country:hover { stroke: #fff; stroke-width: 1.2; cursor: pointer; }
+    .country:hover { stroke: #fff; stroke-width: 1.3; cursor: pointer; }
+    .country.dimmed { opacity: 0.18; }
     #controls {
       background: var(--panel);
       border-top: 1px solid #2a3548;
-      padding: 16px 20px 20px;
+      padding: 14px 20px 18px;
     }
     .timeline-row {
       display: flex;
       align-items: center;
       gap: 14px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     #playBtn {
-      width: 48px;
-      height: 48px;
+      width: 46px; height: 46px;
       border-radius: 50%;
       border: none;
       background: #3498db;
       color: white;
-      font-size: 1.3rem;
+      font-size: 1.25rem;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -98,58 +92,70 @@
     }
     #slider::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 20px;
-      height: 20px;
+      width: 20px; height: 20px;
       border-radius: 50%;
       background: #3498db;
       cursor: pointer;
       border: 2px solid #fff;
     }
     #dateLabel {
-      min-width: 140px;
+      min-width: 130px;
       font-weight: 600;
       font-size: 1.05rem;
       text-align: right;
     }
     #eventLabel {
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       color: var(--muted);
-      margin-bottom: 14px;
-      min-height: 1.4em;
+      margin-bottom: 12px;
+      min-height: 1.35em;
     }
     .legend {
       display: flex;
       flex-wrap: wrap;
-      gap: 14px 22px;
+      gap: 10px 18px;
       font-size: 0.82rem;
     }
-    .legend span {
+    .legend-item {
       display: flex;
       align-items: center;
       gap: 6px;
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      transition: background 0.15s, border-color 0.15s, opacity 0.2s;
+      user-select: none;
     }
+    .legend-item:hover { background: #243044; }
+    .legend-item.active {
+      border-color: #5a7a9a;
+      background: #243044;
+    }
+    .legend-item.inactive { opacity: 0.35; }
     .swatch {
-      width: 14px;
-      height: 14px;
+      width: 14px; height: 14px;
       border-radius: 3px;
       display: inline-block;
+      flex-shrink: 0;
     }
     .note {
-      margin-top: 12px;
-      font-size: 0.75rem;
+      margin-top: 10px;
+      font-size: 0.72rem;
       color: var(--muted);
       line-height: 1.4;
     }
     #tooltip {
       position: absolute;
       pointer-events: none;
-      background: rgba(15,20,25,0.95);
+      background: rgba(15,20,25,0.96);
       border: 1px solid #3a4a60;
-      padding: 6px 10px;
+      padding: 7px 11px;
       border-radius: 6px;
       font-size: 0.85rem;
       display: none;
       z-index: 10;
+      max-width: 220px;
     }
   </style>
 </head>
@@ -157,15 +163,15 @@
   <header>
     <div>
       <h1>Seconde Guerre mondiale 1939 – 1945</h1>
-      <p>Projection Equal Earth · Afrique à sa juste taille · Prototype simplifié</p>
+      <p>Projection Equal Earth · Afrique à sa juste taille · Prototype enrichi</p>
     </div>
-    <div class="legend">
-      <span><i class="swatch" style="background:var(--axis)"></i> Axe (Allemagne, Italie…)</span>
-      <span><i class="swatch" style="background:var(--japan)"></i> Japon / sphère japonaise</span>
-      <span><i class="swatch" style="background:var(--allies)"></i> Alliés</span>
-      <span><i class="swatch" style="background:var(--soviet)"></i> URSS</span>
-      <span><i class="swatch" style="background:var(--occupied)"></i> Occupé / satellite</span>
-      <span><i class="swatch" style="background:var(--neutral)"></i> Neutre</span>
+    <div class="legend" id="legend">
+      <div class="legend-item active" data-status="axis"><i class="swatch" style="background:var(--axis)"></i> Axe (Allemagne, Italie…)</div>
+      <div class="legend-item active" data-status="japan"><i class="swatch" style="background:var(--japan)"></i> Japon / sphère</div>
+      <div class="legend-item active" data-status="allies"><i class="swatch" style="background:var(--allies)"></i> Alliés</div>
+      <div class="legend-item active" data-status="soviet"><i class="swatch" style="background:var(--soviet)"></i> URSS</div>
+      <div class="legend-item active" data-status="occupied"><i class="swatch" style="background:var(--occupied)"></i> Occupé / satellite</div>
+      <div class="legend-item active" data-status="neutral"><i class="swatch" style="background:var(--neutral)"></i> Neutre</div>
     </div>
   </header>
 
@@ -174,130 +180,268 @@
   </div>
 
   <div id="controls">
-    <div id="eventLabel">Invasion de la Pologne – début de la guerre en Europe</div>
+    <div id="eventLabel">1<sup>er</sup> septembre 1939 – Invasion de la Pologne</div>
     <div class="timeline-row">
       <button id="playBtn" title="Lancer / Pause l'animation">▶</button>
       <input type="range" id="slider" min="0" max="72" value="0" step="1">
       <div id="dateLabel">sep. 1939</div>
     </div>
     <p class="note">
-      Prototype pédagogique : les couleurs représentent le contrôle approximatif par grandes phases (pas les lignes de front précises).
-      Projection Equal Earth (égal-aire). Données territoriales simplifiées. Capitul. du Japon : 2 septembre 1945.
+      Cliquez sur une couleur de la légende pour filtrer / mettre en évidence ce camp (recliquez pour tout réafficher).
+      Prototype pédagogique : contrôle approximatif par pays (pas les lignes de front exactes). Projection Equal Earth.
+      Capitulation du Japon : 2 septembre 1945.
     </p>
   </div>
 
   <script>
-    // === Phases simplifiées (mois 0 = sep 1939 … 72 = sep 1945) ===
+    // ========== PHASES (plus granulaires) ==========
+    // m = mois depuis sep 1939 (0) jusqu'à sep 1945 (72)
     const phases = [
-      { m: 0,  label: "sep. 1939", event: "Invasion de la Pologne – début de la guerre en Europe" },
-      { m: 3,  label: "déc. 1939", event: "Guerre d'Hiver (URSS vs Finlande) – Phoney War à l'Ouest" },
-      { m: 8,  label: "mai 1940", event: "Blitzkrieg à l'Ouest – chute des Pays-Bas, Belgique, France" },
-      { m: 10, label: "juil. 1940", event: "Bataille d'Angleterre – Vichy – début de la guerre en Afrique du Nord" },
-      { m: 15, label: "déc. 1940", event: "Guerre gréco-italienne – opération Compass en Libye" },
-      { m: 21, label: "juin 1941", event: "Opération Barbarossa – invasion de l'URSS" },
-      { m: 27, label: "déc. 1941", event: "Pearl Harbor – entrée en guerre des États-Unis – expansion japonaise" },
-      { m: 33, label: "juin 1942", event: "Pic de l'Axe – Midway – début de Stalingrad – El Alamein" },
-      { m: 38, label: "nov. 1942", event: "Opération Torch (Afrique du Nord) – Uranus (Stalingrad)" },
-      { m: 41, label: "fév. 1943", event: "Capitulation de la 6e armée à Stalingrad – tournant de la guerre" },
-      { m: 45, label: "juil. 1943", event: "Koursk – débarquement en Sicile – chute de Mussolini" },
-      { m: 51, label: "jan. 1944", event: "Siège de Leningrad levé – préparation du Jour J" },
-      { m: 57, label: "juin 1944", event: "Débarquement de Normandie (Overlord) – Bagration à l'Est" },
-      { m: 63, label: "déc. 1944", event: "Bataille des Ardennes – libération de la France et de la Belgique" },
-      { m: 68, label: "mai 1945", event: "Capitulation de l'Allemagne (8 mai) – fin de la guerre en Europe" },
-      { m: 72, label: "sep. 1945", event: "Capitulation du Japon (2 septembre) – fin de la Seconde Guerre mondiale" }
+      { m: 0,  label: "sep. 1939", event: "1er septembre – Invasion de la Pologne (Fall Weiss). Royaume-Uni et France déclarent la guerre." },
+      { m: 1,  label: "oct. 1939", event: "Pologne partagée (Allemagne + URSS). Guerre d'Hiver en préparation." },
+      { m: 3,  label: "déc. 1939", event: "Guerre d'Hiver (URSS vs Finlande). « Drôle de guerre » à l'Ouest." },
+      { m: 6,  label: "mar. 1940", event: "Fin de la Guerre d'Hiver. Préparatifs allemands à l'Ouest." },
+      { m: 8,  label: "mai 1940", event: "10 mai – Blitzkrieg à l'Ouest : Pays-Bas, Belgique, Luxembourg, France." },
+      { m: 9,  label: "juin 1940", event: "14 juin – Paris occupée. 22 juin – Armistice franco-allemand. Italie entre en guerre." },
+      { m: 10, label: "juil. 1940", event: "Bataille d'Angleterre. Vichy. Italie attaque l'Égypte depuis la Libye." },
+      { m: 12, label: "sep. 1940", event: "Opération Compass (britanniques en Libye). Japon occupe l'Indochine du Nord." },
+      { m: 15, label: "déc. 1940", event: "Victoires britanniques en Cyrénaïque. Guerre gréco-italienne." },
+      { m: 18, label: "mar. 1941", event: "Rommel arrive en Afrique du Nord (Afrika Korps). Coup d'État en Yougoslavie." },
+      { m: 19, label: "avr. 1941", event: "Invasion de la Yougoslavie et de la Grèce. Tobrouk assiégée." },
+      { m: 21, label: "juin 1941", event: "22 juin – Opération Barbarossa : invasion de l'URSS." },
+      { m: 24, label: "sep. 1941", event: "Siège de Léningrad commence. Kiev tombe. Japon prépare l'attaque au sud." },
+      { m: 27, label: "déc. 1941", event: "7 déc. – Pearl Harbor. Japon attaque Philippines, Malaisie, Hong Kong, Guam. USA en guerre." },
+      { m: 28, label: "jan. 1942", event: "Chute de Manille, Singapour menacée. Japon avance en Birmanie et DEI." },
+      { m: 29, label: "fév. 1942", event: "15 fév. – Chute de Singapour. Japon occupe les Indes orientales néerlandaises." },
+      { m: 30, label: "mar. 1942", event: "Chute de Java et de Rangoon. Bataille de la mer de Java." },
+      { m: 32, label: "mai 1942", event: "Bataille de la mer de Corail. Japon occupe les Philippines (Corregidor)." },
+      { m: 33, label: "juin 1942", event: "Bataille de Midway (tournant Pacifique). Rommel prend Tobrouk, avance vers El Alamein." },
+      { m: 35, label: "août 1942", event: "Début de Guadalcanal. Bataille de Stalingrad commence. 1re bataille d'El Alamein." },
+      { m: 38, label: "nov. 1942", event: "Opération Torch (débarquement allié en Afrique du Nord). Uranus à Stalingrad. 2e El Alamein." },
+      { m: 40, label: "jan. 1943", event: "Allemands et Italiens refluent en Tunisie. Siège de Stalingrad se termine." },
+      { m: 41, label: "fév. 1943", event: "2 fév. – Capitulation de la 6e armée allemande à Stalingrad. Fin de Guadalcanal (fév.)." },
+      { m: 43, label: "mai 1943", event: "13 mai – Capitulation de l'Axe en Tunisie (fin campagne d'Afrique du Nord)." },
+      { m: 45, label: "juil. 1943", event: "Bataille de Koursk. Débarquement en Sicile (Husky). Mussolini renversé (25 juil.)." },
+      { m: 47, label: "sep. 1943", event: "Armistice italien (8 sep.). Débarquement à Salerne. Allemagne occupe le nord de l'Italie." },
+      { m: 51, label: "jan. 1944", event: "Siège de Léningrad levé. Débarquement d'Anzio. Préparation d'Overlord." },
+      { m: 54, label: "avr. 1944", event: "Offensive soviétique en Ukraine. Japon lance l'opération Ichi-Go en Chine." },
+      { m: 57, label: "juin 1944", event: "6 juin – Jour J (Normandie). 22 juin – Opération Bagration (anéantissement du groupe d'armées Centre)." },
+      { m: 59, label: "août 1944", event: "Libération de Paris (25 août). Roumanie et Bulgarie basculent. Varsovie se soulève." },
+      { m: 61, label: "oct. 1944", event: "Débarquement aux Philippines (Leyte). Bataille du golfe de Leyte. Allemagne isolée." },
+      { m: 63, label: "déc. 1944", event: "Bataille des Ardennes (von Rundstedt). Budapest assiégée." },
+      { m: 66, label: "mar. 1945", event: "Alliés franchissent le Rhin. Soviétiques en Poméranie et Silésie. Iwo Jima." },
+      { m: 68, label: "mai 1945", event: "8 mai – Capitulation de l'Allemagne (VE Day). Fin de la guerre en Europe." },
+      { m: 70, label: "juil. 1945", event: "Conférence de Potsdam. Préparation de l'invasion du Japon. Okinawa terminée." },
+      { m: 71, label: "août 1945", event: "6 et 9 août – Hiroshima et Nagasaki. URSS déclare la guerre au Japon (Mandchourie)." },
+      { m: 72, label: "sep. 1945", event: "2 septembre – Capitulation du Japon à bord du USS Missouri. Fin de la Seconde Guerre mondiale." }
     ];
 
-    // Mapping simplifié pays → statut selon la phase (approximatif)
-    // Clés = noms anglais de world-atlas / Natural Earth
+    // ========== STATUT PAR PAYS (précision Afrique du Nord + Pacifique) ==========
     function getStatus(name, month) {
-      const n = name || "";
-      // Japon et empire
-      if (["Japan","Korea","Taiwan","Philippines","Indonesia","Malaysia","Singapore","Myanmar","Thailand","Vietnam","Cambodia","Laos","Papua New Guinea","Solomon Is.","Guam"].some(x => n.includes(x) || n === x)) {
-        if (month < 27) return n === "Japan" || n.includes("Korea") || n.includes("Taiwan") ? "japan" : "neutral";
-        if (month < 68) return "japan";
-        return "allies"; // après capitulation
+      if (!name) return "neutral";
+
+      // --- JAPON & SPHÈRE DE CO-PROSPÉRITÉ ---
+      // Japon propre
+      if (name === "Japan" || name === "Taiwan" || name === "South Korea" || name === "North Korea") {
+        if (month < 72) return "japan";
+        return "allies"; // occupation alliée après sep 1945
       }
-      // Allemagne + satellites / annexions
-      if (["Germany","Austria","Czechia","Slovakia","Poland","Hungary","Romania","Bulgaria","Croatia","Bosnia and Herz.","Serbia","Montenegro","North Macedonia","Albania","Greece","Netherlands","Belgium","Luxembourg","Denmark","Norway","France","Ukraine","Belarus","Lithuania","Latvia","Estonia"].includes(n) || n.includes("Germany")) {
-        if (month < 8) {
-          if (["Germany","Austria","Czechia","Slovakia"].includes(n)) return "axis";
-          if (n === "Poland") return month >= 0 ? "occupied" : "allies";
-          return "neutral";
-        }
-        if (month < 68) {
-          if (["Germany","Austria","Czechia","Slovakia","Hungary","Romania","Bulgaria","Croatia"].includes(n)) return "axis";
-          if (["Poland","Netherlands","Belgium","Luxembourg","Denmark","Norway","France","Ukraine","Belarus","Lithuania","Latvia","Estonia","Greece","Serbia","Albania","Bosnia and Herz.","Montenegro","North Macedonia"].includes(n)) return "occupied";
-          return "occupied";
-        }
-        return "allies"; // après mai 45
+      // Expansion 1941-42 puis reconquête progressive
+      if (name === "Philippines") {
+        if (month < 27) return "allies";          // commonwealth US
+        if (month < 61) return "japan";           // occupé jusqu'à Leyte/Luzon 1944-45
+        return "allies";
       }
-      // Italie
-      if (n === "Italy") {
+      if (name === "Malaysia" || name === "Singapore" || name === "Brunei") {
+        if (month < 27) return "allies";          // britannique
+        if (month < 72) return "japan";
+        return "allies";
+      }
+      if (name === "Indonesia") {                 // Indes orientales néerlandaises
+        if (month < 28) return "allies";
+        if (month < 72) return "japan";
+        return "allies";
+      }
+      if (name === "Myanmar") {                   // Birmanie
+        if (month < 28) return "allies";
+        if (month < 68) return "japan";           // reconquise progressivement 1944-45
+        return "allies";
+      }
+      if (name === "Thailand") {
+        if (month < 27) return "neutral";
+        if (month < 72) return "japan";           // allié forcé du Japon
+        return "allies";
+      }
+      if (name === "Vietnam" || name === "Cambodia" || name === "Laos") {
+        if (month < 12) return "allies";          // Indochine française
+        if (month < 72) return "japan";           // occupation japonaise (1940/41 puis 1945)
+        return "allies";
+      }
+      if (name === "Papua New Guinea" || name === "Solomon Is.") {
+        if (month < 27) return "allies";
+        if (month < 40) return "japan";           // 1942 – début 1943
+        return "allies";                          // reconquis
+      }
+      if (name === "China") {
+        // Guerre sino-japonaise depuis 1937 ; zones côtières et nord occupées
+        if (month < 72) return "occupied";        // simplification : zones japonaises + nationalistes/communistes
+        return "allies";
+      }
+
+      // --- AFRIQUE DU NORD & CORNE ---
+      if (name === "Libya") {
+        if (month < 10) return "axis";            // colonie italienne
+        if (month < 15) return "occupied";        // Compass (britanniques)
+        if (month < 33) return "axis";            // retour de Rommel 1941-42
+        if (month < 40) return "occupied";        // El Alamein → retraite
+        if (month < 43) return "occupied";        // combats jusqu'à Tunisie
+        return "allies";
+      }
+      if (name === "Egypt") {
+        if (month < 33) return "allies";          // britannique, menacé
+        if (month < 38) return "occupied";        // zone de combat El Alamein
+        return "allies";
+      }
+      if (name === "Tunisia") {
+        if (month < 38) return "allies";          // Vichy / protectorat français
+        if (month < 43) return "occupied";        // occupation Axe nov 1942 – mai 1943
+        return "allies";
+      }
+      if (name === "Algeria" || name === "Morocco") {
+        if (month < 38) return "allies";          // Vichy
+        return "allies";                          // Torch (nov 1942) → Alliés
+      }
+      if (name === "Ethiopia" || name === "Eritrea") {
+        if (month < 12) return "axis";            // Afrique orientale italienne
+        if (month < 18) return "occupied";        // campagne d'Afrique de l'Est
+        return "allies";                          // libéré 1941
+      }
+      if (name === "Somalia") {
+        if (month < 12) return "axis";
+        return "allies";
+      }
+
+      // --- EUROPE CENTRALE / AXE ---
+      if (["Germany", "Austria", "Czechia", "Slovakia"].includes(name)) {
+        if (month < 68) return "axis";
+        return "occupied";                        // zones d'occupation alliées
+      }
+      if (name === "Italy") {
         if (month < 45) return "axis";
-        if (month < 68) return "occupied"; // sud allié / nord RSI
+        if (month < 68) return "occupied";        // sud allié / RSI au nord
         return "allies";
       }
-      // URSS
-      if (n === "Russia" || n === "Ukraine" || n === "Belarus" || n.includes("Russia")) {
-        // Ukraine/Belarus déjà traités plus haut pour occupation
-        if (n === "Russia") {
-          if (month < 21) return "neutral"; // pacte
-          return "soviet";
-        }
+      if (["Hungary", "Romania", "Bulgaria"].includes(name)) {
+        if (month < 21) return "axis";            // alliés de l'Axe
+        if (month < 59) return "axis";
+        if (month < 68) return "occupied";        // bascule 1944 puis occupation soviétique
+        return "occupied";
       }
-      // Alliés majeurs
-      if (["United Kingdom","United States of America","Canada","Australia","New Zealand","India","South Africa","Brazil","Mexico","China"].includes(n) || n.includes("United Kingdom") || n.includes("United States")) {
-        if (n.includes("United States") && month < 27) return "neutral";
-        return "allies";
-      }
-      // Chine (guerre avec Japon dès 1937)
-      if (n === "China") return month < 72 ? "occupied" : "allies"; // simplification : zones japonaises
-      // Afrique coloniale / Nord Afrique
-      if (["Libya","Egypt","Tunisia","Algeria","Morocco","Ethiopia","Eritrea","Somalia"].includes(n)) {
-        if (month < 10) return n === "Libya" || n === "Ethiopia" ? "axis" : "allies";
-        if (month < 38) return "occupied"; // combats
-        return "allies";
-      }
-      // Finlande
-      if (n === "Finland") {
-        if (month >= 3 && month < 21) return "occupied"; // guerre d'hiver
-        if (month >= 21 && month < 68) return "axis"; // cobelligérant
+      if (name === "Finland") {
+        if (month >= 3 && month < 6) return "occupied"; // Guerre d'Hiver
+        if (month >= 21 && month < 68) return "axis";   // Guerre de Continuation
         return "neutral";
       }
-      // Espagne, Suède, Suisse, Turquie, Irlande, Portugal...
-      if (["Spain","Sweden","Switzerland","Turkey","Ireland","Portugal","Saudi Arabia","Afghanistan","Iran","Iraq"].includes(n)) {
+      if (name === "Croatia") {
+        if (month >= 19 && month < 68) return "axis";   // État indépendant de Croatie
+        return "occupied";
+      }
+
+      // --- OCCUPÉS PAR L'ALLEMAGNE ---
+      if (["Poland", "Netherlands", "Belgium", "Luxembourg", "Denmark", "Norway"].includes(name)) {
+        if (month < 0) return "allies";
+        if (name === "Poland" && month >= 0) return month < 68 ? "occupied" : "occupied";
+        if (["Netherlands","Belgium","Luxembourg"].includes(name) && month >= 8) return month < 68 ? "occupied" : "allies";
+        if (["Denmark","Norway"].includes(name) && month >= 8) return month < 68 ? "occupied" : "allies";
+        return "allies";
+      }
+      if (name === "France") {
+        if (month < 9) return "allies";
+        if (month < 57) return "occupied";        // zone occupée + Vichy
+        return "allies";                          // libération 1944
+      }
+      if (["Greece", "Albania", "Serbia", "Montenegro", "Macedonia", "Bosnia and Herz.", "Slovenia"].includes(name)) {
+        if (month < 19) return name === "Albania" ? "axis" : "allies"; // Albanie italienne
+        if (month < 68) return "occupied";
+        return "allies";
+      }
+      if (["Ukraine", "Belarus", "Lithuania", "Latvia", "Estonia", "Moldova"].includes(name)) {
+        if (month < 21) return name === "Moldova" || name === "Ukraine" || name === "Belarus" ? "soviet" : "occupied"; // pactes 1939-40
+        if (month < 57) return "occupied";        // occupation allemande
+        return "soviet";
+      }
+
+      // --- URSS ---
+      if (name === "Russia") {
+        if (month < 21) return "neutral";         // pacte de non-agression
+        return "soviet";
+      }
+
+      // --- ALLIÉS MAJEURS ---
+      if (name === "United Kingdom" || name === "Canada" || name === "Australia" || name === "New Zealand" || name === "India" || name === "South Africa") {
+        return "allies";
+      }
+      if (name === "United States of America") {
+        if (month < 27) return "neutral";
+        return "allies";
+      }
+      if (name === "Brazil") {
+        if (month < 33) return "neutral";         // entre en guerre 1942
+        return "allies";
+      }
+
+      // --- NEUTRES ---
+      if (["Spain", "Sweden", "Switzerland", "Turkey", "Ireland", "Portugal", "Saudi Arabia", "Afghanistan", "Yemen", "Argentina", "Chile", "Switzerland"].includes(name)) {
         return "neutral";
       }
-      // Amérique latine / reste
-      if (["Argentina","Chile","Peru","Colombia","Venezuela"].includes(n)) return "neutral";
+      if (name === "Iran" || name === "Iraq") {
+        if (month >= 21 && month < 30) return "occupied"; // intervention anglo-soviétique 1941
+        return "neutral";
+      }
+
+      // Afrique subsaharienne coloniale (simplification : Alliés après 1940 sauf AOF Vichy puis ralliée)
+      if (["Senegal","Mali","Guinea","Côte d'Ivoire","Burkina Faso","Niger","Chad","Cameroon","Gabon","Congo","Central African Rep.","Madagascar"].includes(name)) {
+        if (month < 10) return "allies";          // colonies françaises
+        if (month < 14) return "occupied";        // Vichy puis ralliement progressif à la France libre
+        return "allies";
+      }
+
       // Par défaut
       return "neutral";
     }
 
     const colorMap = {
-      axis: getComputedStyle(document.documentElement).getPropertyValue('--axis').trim() || "#c0392b",
-      japan: getComputedStyle(document.documentElement).getPropertyValue('--japan').trim() || "#d35400",
-      allies: getComputedStyle(document.documentElement).getPropertyValue('--allies').trim() || "#2980b9",
-      soviet: getComputedStyle(document.documentElement).getPropertyValue('--soviet').trim() || "#e67e22",
-      occupied: getComputedStyle(document.documentElement).getPropertyValue('--occupied').trim() || "#8e44ad",
-      neutral: getComputedStyle(document.documentElement).getPropertyValue('--neutral').trim() || "#7f8c8d"
+      axis: "#c0392b",
+      japan: "#d35400",
+      allies: "#2980b9",
+      soviet: "#e67e22",
+      occupied: "#8e44ad",
+      neutral: "#7f8c8d"
     };
 
-    // === Rendu carte ===
+    const statusLabels = {
+      axis: "Axe",
+      japan: "Japon / sphère",
+      allies: "Alliés",
+      soviet: "URSS",
+      occupied: "Occupé / satellite",
+      neutral: "Neutre"
+    };
+
+    // ========== CARTE ==========
     const width = 960;
-    const height = 500;
+    const height = 520;
     const container = d3.select("#map-container");
     const svg = container.append("svg")
       .attr("viewBox", `0 0 ${width} ${height}`)
       .attr("preserveAspectRatio", "xMidYMid meet");
 
     const projection = d3.geoEqualEarth()
-      .fitSize([width - 20, height - 20], { type: "Sphere" })
+      .fitSize([width - 16, height - 16], { type: "Sphere" })
       .translate([width / 2, height / 2]);
 
     const path = d3.geoPath().projection(projection);
 
-    // Océan / sphère
     svg.append("path")
       .datum({ type: "Sphere" })
       .attr("fill", "#0a1628")
@@ -305,12 +449,11 @@
       .attr("stroke-width", 1.5)
       .attr("d", path);
 
-    // Graticule léger
     svg.append("path")
       .datum(d3.geoGraticule()())
       .attr("fill", "none")
       .attr("stroke", "#1a2a40")
-      .attr("stroke-width", 0.4)
+      .attr("stroke-width", 0.35)
       .attr("d", path);
 
     const g = svg.append("g");
@@ -320,6 +463,27 @@
     let currentMonth = 0;
     let playing = false;
     let timer = null;
+    let activeFilters = new Set(["axis","japan","allies","soviet","occupied","neutral"]);
+
+    // Mois clés où chaque camp évolue fortement (pour adapter la timeline)
+    const relevantMonths = {
+      axis:     [0, 8, 9, 10, 15, 18, 19, 21, 33, 38, 41, 43, 45, 47, 57, 59, 63, 68],
+      japan:    [12, 27, 28, 29, 30, 32, 33, 35, 41, 54, 61, 66, 70, 71, 72],
+      allies:   [0, 8, 9, 10, 15, 27, 33, 38, 43, 45, 47, 57, 59, 61, 63, 68, 72],
+      soviet:   [1, 3, 6, 21, 24, 35, 38, 41, 45, 51, 57, 59, 63, 66, 68, 71],
+      occupied: [0, 8, 9, 19, 21, 27, 33, 38, 41, 45, 47, 57, 59, 68],
+      neutral:  [0, 3, 21, 27, 33, 68, 72]
+    };
+
+    // Premier mois intéressant pour chaque camp (saut automatique)
+    const firstMonth = {
+      axis: 0,
+      japan: 27,
+      allies: 0,
+      soviet: 21,
+      occupied: 0,
+      neutral: 0
+    };
 
     d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(world => {
       countries = topojson.feature(world, world.objects.countries).features;
@@ -331,20 +495,12 @@
         .attr("d", path)
         .attr("fill", d => colorMap[getStatus(d.properties.name, 0)] || colorMap.neutral)
         .on("mousemove", (event, d) => {
-          const status = getStatus(d.properties.name, currentMonth);
-          const labels = {
-            axis: "Axe",
-            japan: "Japon / sphère",
-            allies: "Alliés",
-            soviet: "URSS",
-            occupied: "Occupé / satellite",
-            neutral: "Neutre"
-          };
+          const st = getStatus(d.properties.name, currentMonth);
           tooltip
             .style("display", "block")
-            .style("left", (event.offsetX + 12) + "px")
-            .style("top", (event.offsetY + 12) + "px")
-            .html(`<strong>${d.properties.name}</strong><br>${labels[status] || status}`);
+            .style("left", (event.offsetX + 14) + "px")
+            .style("top", (event.offsetY + 14) + "px")
+            .html(`<strong>${d.properties.name}</strong><br>${statusLabels[st] || st}`);
         })
         .on("mouseleave", () => tooltip.style("display", "none"));
 
@@ -353,54 +509,104 @@
       container.append("div")
         .style("padding", "40px")
         .style("color", "#e74c3c")
-        .text("Erreur de chargement de la carte (CDN). Vérifiez votre connexion.");
+        .text("Erreur de chargement de la carte (CDN). Vérifiez votre connexion internet.");
       console.error(err);
     });
+
+    function getRelevantMonths() {
+      // Si tous les filtres sont actifs → timeline complète
+      if (activeFilters.size === 6) {
+        return phases.map(p => p.m);
+      }
+      // Union des mois pertinents des camps sélectionnés
+      const set = new Set();
+      activeFilters.forEach(st => {
+        (relevantMonths[st] || []).forEach(m => set.add(m));
+      });
+      return Array.from(set).sort((a, b) => a - b);
+    }
 
     function updateMap(month) {
       currentMonth = month;
       g.selectAll("path.country")
+        .classed("dimmed", d => {
+          const st = getStatus(d.properties.name, month);
+          return !activeFilters.has(st);
+        })
         .transition()
-        .duration(280)
+        .duration(260)
         .attr("fill", d => colorMap[getStatus(d.properties.name, month)] || colorMap.neutral);
 
-      // Trouver la phase la plus proche
       let phase = phases[0];
       for (const p of phases) {
         if (p.m <= month) phase = p;
       }
       d3.select("#dateLabel").text(phase.label);
-      d3.select("#eventLabel").text(phase.event);
+      d3.select("#eventLabel").html(phase.event);
       d3.select("#slider").property("value", month);
     }
 
-    // Slider
-    d3.select("#slider").on("input", function() {
+    // Slider (reste sur toute la plage, mais on peut forcer un saut)
+    d3.select("#slider").on("input", function () {
       if (playing) stopPlay();
       updateMap(+this.value);
     });
 
-    // Play / Pause
+    // Play / Pause – s’adapte aux mois pertinents du filtre
     const playBtn = d3.select("#playBtn");
     function startPlay() {
       playing = true;
       playBtn.classed("playing", true).text("❚❚");
       timer = setInterval(() => {
-        let next = currentMonth + 1;
-        if (next > 72) {
-          next = 0; // boucle
+        const rel = getRelevantMonths();
+        if (rel.length === 0) {
+          updateMap(currentMonth + 1 > 72 ? 0 : currentMonth + 1);
+          return;
         }
+        // Trouver le prochain mois pertinent après currentMonth
+        let next = null;
+        for (const m of rel) {
+          if (m > currentMonth) { next = m; break; }
+        }
+        if (next === null) next = rel[0]; // boucle
         updateMap(next);
-      }, 900);
+      }, 1100); // un peu plus lent car on saute de phase en phase
     }
     function stopPlay() {
       playing = false;
       playBtn.classed("playing", false).text("▶");
       if (timer) clearInterval(timer);
     }
-    playBtn.on("click", () => {
-      if (playing) stopPlay();
-      else startPlay();
+    playBtn.on("click", () => playing ? stopPlay() : startPlay());
+
+    // ========== LÉGENDE CLIQUABLE + ADAPTATION TIMELINE ==========
+    d3.selectAll(".legend-item").on("click", function () {
+      const status = this.getAttribute("data-status");
+      const item = d3.select(this);
+
+      if (activeFilters.size === 6) {
+        // Tout est actif → on isole celui-ci
+        activeFilters = new Set([status]);
+        d3.selectAll(".legend-item").classed("active", false).classed("inactive", true);
+        item.classed("active", true).classed("inactive", false);
+        // Saut automatique vers le premier moment important de ce camp
+        if (playing) stopPlay();
+        updateMap(firstMonth[status] ?? 0);
+      } else if (activeFilters.has(status) && activeFilters.size === 1) {
+        // Seul actif → on réaffiche tout
+        activeFilters = new Set(["axis","japan","allies","soviet","occupied","neutral"]);
+        d3.selectAll(".legend-item").classed("active", true).classed("inactive", false);
+        if (playing) stopPlay();
+      } else if (activeFilters.has(status)) {
+        // Retirer
+        activeFilters.delete(status);
+        item.classed("active", false).classed("inactive", true);
+      } else {
+        // Ajouter
+        activeFilters.add(status);
+        item.classed("active", true).classed("inactive", false);
+      }
+      updateMap(currentMonth);
     });
   </script>
 </body>
