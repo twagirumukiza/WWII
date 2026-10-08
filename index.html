@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Carte animée de la Seconde Guerre mondiale 1939-1945 (projection Equal Earth)</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --axis: #c0392b;
+      --allies: #2980b9;
+      --occupied: #8e44ad;
+      --neutral: #7f8c8d;
+      --soviet: #e67e22;
+      --japan: #d35400;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 12px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid #2a3548;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      justify-content: space-between;
+    }
+    header h1 {
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+    header p {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    #map-container {
+      flex: 1;
+      position: relative;
+      min-height: 420px;
+      background: #0a0e14;
+    }
+    svg { width: 100%; height: 100%; display: block; }
+    .country {
+      stroke: #1a2332;
+      stroke-width: 0.4;
+      transition: fill 0.35s ease;
+    }
+    .country:hover { stroke: #fff; stroke-width: 1.2; cursor: pointer; }
+    #controls {
+      background: var(--panel);
+      border-top: 1px solid #2a3548;
+      padding: 16px 20px 20px;
+    }
+    .timeline-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+    #playBtn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: none;
+      background: #3498db;
+      color: white;
+      font-size: 1.3rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    #playBtn:hover { background: #2980b9; }
+    #playBtn.playing { background: #e74c3c; }
+    #slider {
+      flex: 1;
+      height: 8px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: #2a3548;
+      border-radius: 4px;
+      outline: none;
+    }
+    #slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #3498db;
+      cursor: pointer;
+      border: 2px solid #fff;
+    }
+    #dateLabel {
+      min-width: 140px;
+      font-weight: 600;
+      font-size: 1.05rem;
+      text-align: right;
+    }
+    #eventLabel {
+      font-size: 0.95rem;
+      color: var(--muted);
+      margin-bottom: 14px;
+      min-height: 1.4em;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px 22px;
+      font-size: 0.82rem;
+    }
+    .legend span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+    .note {
+      margin-top: 12px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    #tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(15,20,25,0.95);
+      border: 1px solid #3a4a60;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      display: none;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Seconde Guerre mondiale 1939 – 1945</h1>
+      <p>Projection Equal Earth · Afrique à sa juste taille · Prototype simplifié</p>
+    </div>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--axis)"></i> Axe (Allemagne, Italie…)</span>
+      <span><i class="swatch" style="background:var(--japan)"></i> Japon / sphère japonaise</span>
+      <span><i class="swatch" style="background:var(--allies)"></i> Alliés</span>
+      <span><i class="swatch" style="background:var(--soviet)"></i> URSS</span>
+      <span><i class="swatch" style="background:var(--occupied)"></i> Occupé / satellite</span>
+      <span><i class="swatch" style="background:var(--neutral)"></i> Neutre</span>
+    </div>
+  </header>
+
+  <div id="map-container">
+    <div id="tooltip"></div>
+  </div>
+
+  <div id="controls">
+    <div id="eventLabel">Invasion de la Pologne – début de la guerre en Europe</div>
+    <div class="timeline-row">
+      <button id="playBtn" title="Lancer / Pause l'animation">▶</button>
+      <input type="range" id="slider" min="0" max="72" value="0" step="1">
+      <div id="dateLabel">sep. 1939</div>
+    </div>
+    <p class="note">
+      Prototype pédagogique : les couleurs représentent le contrôle approximatif par grandes phases (pas les lignes de front précises).
+      Projection Equal Earth (égal-aire). Données territoriales simplifiées. Capitul. du Japon : 2 septembre 1945.
+    </p>
+  </div>
+
+  <script>
+    // === Phases simplifiées (mois 0 = sep 1939 … 72 = sep 1945) ===
+    const phases = [
+      { m: 0,  label: "sep. 1939", event: "Invasion de la Pologne – début de la guerre en Europe" },
+      { m: 3,  label: "déc. 1939", event: "Guerre d'Hiver (URSS vs Finlande) – Phoney War à l'Ouest" },
+      { m: 8,  label: "mai 1940", event: "Blitzkrieg à l'Ouest – chute des Pays-Bas, Belgique, France" },
+      { m: 10, label: "juil. 1940", event: "Bataille d'Angleterre – Vichy – début de la guerre en Afrique du Nord" },
+      { m: 15, label: "déc. 1940", event: "Guerre gréco-italienne – opération Compass en Libye" },
+      { m: 21, label: "juin 1941", event: "Opération Barbarossa – invasion de l'URSS" },
+      { m: 27, label: "déc. 1941", event: "Pearl Harbor – entrée en guerre des États-Unis – expansion japonaise" },
+      { m: 33, label: "juin 1942", event: "Pic de l'Axe – Midway – début de Stalingrad – El Alamein" },
+      { m: 38, label: "nov. 1942", event: "Opération Torch (Afrique du Nord) – Uranus (Stalingrad)" },
+      { m: 41, label: "fév. 1943", event: "Capitulation de la 6e armée à Stalingrad – tournant de la guerre" },
+      { m: 45, label: "juil. 1943", event: "Koursk – débarquement en Sicile – chute de Mussolini" },
+      { m: 51, label: "jan. 1944", event: "Siège de Leningrad levé – préparation du Jour J" },
+      { m: 57, label: "juin 1944", event: "Débarquement de Normandie (Overlord) – Bagration à l'Est" },
+      { m: 63, label: "déc. 1944", event: "Bataille des Ardennes – libération de la France et de la Belgique" },
+      { m: 68, label: "mai 1945", event: "Capitulation de l'Allemagne (8 mai) – fin de la guerre en Europe" },
+      { m: 72, label: "sep. 1945", event: "Capitulation du Japon (2 septembre) – fin de la Seconde Guerre mondiale" }
+    ];
+
+    // Mapping simplifié pays → statut selon la phase (approximatif)
+    // Clés = noms anglais de world-atlas / Natural Earth
+    function getStatus(name, month) {
+      const n = name || "";
+      // Japon et empire
+      if (["Japan","Korea","Taiwan","Philippines","Indonesia","Malaysia","Singapore","Myanmar","Thailand","Vietnam","Cambodia","Laos","Papua New Guinea","Solomon Is.","Guam"].some(x => n.includes(x) || n === x)) {
+        if (month < 27) return n === "Japan" || n.includes("Korea") || n.includes("Taiwan") ? "japan" : "neutral";
+        if (month < 68) return "japan";
+        return "allies"; // après capitulation
+      }
+      // Allemagne + satellites / annexions
+      if (["Germany","Austria","Czechia","Slovakia","Poland","Hungary","Romania","Bulgaria","Croatia","Bosnia and Herz.","Serbia","Montenegro","North Macedonia","Albania","Greece","Netherlands","Belgium","Luxembourg","Denmark","Norway","France","Ukraine","Belarus","Lithuania","Latvia","Estonia"].includes(n) || n.includes("Germany")) {
+        if (month < 8) {
+          if (["Germany","Austria","Czechia","Slovakia"].includes(n)) return "axis";
+          if (n === "Poland") return month >= 0 ? "occupied" : "allies";
+          return "neutral";
+        }
+        if (month < 68) {
+          if (["Germany","Austria","Czechia","Slovakia","Hungary","Romania","Bulgaria","Croatia"].includes(n)) return "axis";
+          if (["Poland","Netherlands","Belgium","Luxembourg","Denmark","Norway","France","Ukraine","Belarus","Lithuania","Latvia","Estonia","Greece","Serbia","Albania","Bosnia and Herz.","Montenegro","North Macedonia"].includes(n)) return "occupied";
+          return "occupied";
+        }
+        return "allies"; // après mai 45
+      }
+      // Italie
+      if (n === "Italy") {
+        if (month < 45) return "axis";
+        if (month < 68) return "occupied"; // sud allié / nord RSI
+        return "allies";
+      }
+      // URSS
+      if (n === "Russia" || n === "Ukraine" || n === "Belarus" || n.includes("Russia")) {
+        // Ukraine/Belarus déjà traités plus haut pour occupation
+        if (n === "Russia") {
+          if (month < 21) return "neutral"; // pacte
+          return "soviet";
+        }
+      }
+      // Alliés majeurs
+      if (["United Kingdom","United States of America","Canada","Australia","New Zealand","India","South Africa","Brazil","Mexico","China"].includes(n) || n.includes("United Kingdom") || n.includes("United States")) {
+        if (n.includes("United States") && month < 27) return "neutral";
+        return "allies";
+      }
+      // Chine (guerre avec Japon dès 1937)
+      if (n === "China") return month < 72 ? "occupied" : "allies"; // simplification : zones japonaises
+      // Afrique coloniale / Nord Afrique
+      if (["Libya","Egypt","Tunisia","Algeria","Morocco","Ethiopia","Eritrea","Somalia"].includes(n)) {
+        if (month < 10) return n === "Libya" || n === "Ethiopia" ? "axis" : "allies";
+        if (month < 38) return "occupied"; // combats
+        return "allies";
+      }
+      // Finlande
+      if (n === "Finland") {
+        if (month >= 3 && month < 21) return "occupied"; // guerre d'hiver
+        if (month >= 21 && month < 68) return "axis"; // cobelligérant
+        return "neutral";
+      }
+      // Espagne, Suède, Suisse, Turquie, Irlande, Portugal...
+      if (["Spain","Sweden","Switzerland","Turkey","Ireland","Portugal","Saudi Arabia","Afghanistan","Iran","Iraq"].includes(n)) {
+        return "neutral";
+      }
+      // Amérique latine / reste
+      if (["Argentina","Chile","Peru","Colombia","Venezuela"].includes(n)) return "neutral";
+      // Par défaut
+      return "neutral";
+    }
+
+    const colorMap = {
+      axis: getComputedStyle(document.documentElement).getPropertyValue('--axis').trim() || "#c0392b",
+      japan: getComputedStyle(document.documentElement).getPropertyValue('--japan').trim() || "#d35400",
+      allies: getComputedStyle(document.documentElement).getPropertyValue('--allies').trim() || "#2980b9",
+      soviet: getComputedStyle(document.documentElement).getPropertyValue('--soviet').trim() || "#e67e22",
+      occupied: getComputedStyle(document.documentElement).getPropertyValue('--occupied').trim() || "#8e44ad",
+      neutral: getComputedStyle(document.documentElement).getPropertyValue('--neutral').trim() || "#7f8c8d"
+    };
+
+    // === Rendu carte ===
+    const width = 960;
+    const height = 500;
+    const container = d3.select("#map-container");
+    const svg = container.append("svg")
+      .attr("viewBox", `0 0 ${width} ${height}`)
+      .attr("preserveAspectRatio", "xMidYMid meet");
+
+    const projection = d3.geoEqualEarth()
+      .fitSize([width - 20, height - 20], { type: "Sphere" })
+      .translate([width / 2, height / 2]);
+
+    const path = d3.geoPath().projection(projection);
+
+    // Océan / sphère
+    svg.append("path")
+      .datum({ type: "Sphere" })
+      .attr("fill", "#0a1628")
+      .attr("stroke", "#1e3a5f")
+      .attr("stroke-width", 1.5)
+      .attr("d", path);
+
+    // Graticule léger
+    svg.append("path")
+      .datum(d3.geoGraticule()())
+      .attr("fill", "none")
+      .attr("stroke", "#1a2a40")
+      .attr("stroke-width", 0.4)
+      .attr("d", path);
+
+    const g = svg.append("g");
+    const tooltip = d3.select("#tooltip");
+
+    let countries = [];
+    let currentMonth = 0;
+    let playing = false;
+    let timer = null;
+
+    d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(world => {
+      countries = topojson.feature(world, world.objects.countries).features;
+
+      g.selectAll("path.country")
+        .data(countries)
+        .join("path")
+        .attr("class", "country")
+        .attr("d", path)
+        .attr("fill", d => colorMap[getStatus(d.properties.name, 0)] || colorMap.neutral)
+        .on("mousemove", (event, d) => {
+          const status = getStatus(d.properties.name, currentMonth);
+          const labels = {
+            axis: "Axe",
+            japan: "Japon / sphère",
+            allies: "Alliés",
+            soviet: "URSS",
+            occupied: "Occupé / satellite",
+            neutral: "Neutre"
+          };
+          tooltip
+            .style("display", "block")
+            .style("left", (event.offsetX + 12) + "px")
+            .style("top", (event.offsetY + 12) + "px")
+            .html(`<strong>${d.properties.name}</strong><br>${labels[status] || status}`);
+        })
+        .on("mouseleave", () => tooltip.style("display", "none"));
+
+      updateMap(0);
+    }).catch(err => {
+      container.append("div")
+        .style("padding", "40px")
+        .style("color", "#e74c3c")
+        .text("Erreur de chargement de la carte (CDN). Vérifiez votre connexion.");
+      console.error(err);
+    });
+
+    function updateMap(month) {
+      currentMonth = month;
+      g.selectAll("path.country")
+        .transition()
+        .duration(280)
+        .attr("fill", d => colorMap[getStatus(d.properties.name, month)] || colorMap.neutral);
+
+      // Trouver la phase la plus proche
+      let phase = phases[0];
+      for (const p of phases) {
+        if (p.m <= month) phase = p;
+      }
+      d3.select("#dateLabel").text(phase.label);
+      d3.select("#eventLabel").text(phase.event);
+      d3.select("#slider").property("value", month);
+    }
+
+    // Slider
+    d3.select("#slider").on("input", function() {
+      if (playing) stopPlay();
+      updateMap(+this.value);
+    });
+
+    // Play / Pause
+    const playBtn = d3.select("#playBtn");
+    function startPlay() {
+      playing = true;
+      playBtn.classed("playing", true).text("❚❚");
+      timer = setInterval(() => {
+        let next = currentMonth + 1;
+        if (next > 72) {
+          next = 0; // boucle
+        }
+        updateMap(next);
+      }, 900);
+    }
+    function stopPlay() {
+      playing = false;
+      playBtn.classed("playing", false).text("▶");
+      if (timer) clearInterval(timer);
+    }
+    playBtn.on("click", () => {
+      if (playing) stopPlay();
+      else startPlay();
+    });
+  </script>
+</body>
+</html>
